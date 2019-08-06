@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/comail/colog"
-	transproxy "github.com/wadahiro/go-transproxy"
+	transproxy "github.com/kiraryyx/ultproxy"
 )
 
 func orPanic(err error) {
@@ -66,7 +66,7 @@ var (
 func main() {
 	fs.Usage = func() {
 		_, exe := filepath.Split(os.Args[0])
-		fmt.Fprint(os.Stderr, "go-transproxy.\n\n")
+		fmt.Fprint(os.Stderr, "ultproxy.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage:\n\n  %s [options]\n\nOptions:\n\n", exe)
 		fs.PrintDefaults()
 	}
@@ -106,7 +106,7 @@ func startExplicitProxyOnly(level colog.Level) {
 	<-sig
 
 	log.Printf("info: Proxy servers stopping.")
-	log.Printf("info: go-transproxy exited.")
+	log.Printf("info: ultproxy exited.")
 }
 
 func startAllProxy(level colog.Level) {
@@ -193,7 +193,7 @@ func startAllProxy(level colog.Level) {
 		log.Printf("info: iptables rules deleted.")
 	}
 
-	log.Printf("info: go-transproxy exited.")
+	log.Printf("info: ultproxy exited.")
 }
 
 func startExplicitProxy() {

@@ -1,4 +1,4 @@
-package transproxy
+package ultproxy
 
 import (
 	"encoding/base64"

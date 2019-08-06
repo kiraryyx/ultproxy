@@ -1,34 +1,34 @@
-# go-transproxy
+# ultproxy
 
 Transparent proxy servers for HTTP, HTTPS and TCP. 
 This repository is forked from [wadahiro/go-transproxy](https://github.com/wadahiro/go-transproxy), and still heavily under development.
 
 ## Description
 
-**go-transproxy** provides transparent proxy servers for HTTP, HTTPS and TCP with single binary.
+**ultproxy** provides transparent proxy servers for HTTP, HTTPS and TCP with single binary.
 Nothing needs to setup many tools. Nothing needs to configure iptables.
-**go-transproxy** will start multiple proxy servers for these protocols.
+**ultproxy** will start multiple proxy servers for these protocols.
 Futheremore, it will configure iptables automatically.
 
-**go-transproxy** also provides two types of explicit proxy(not transparent proxy).
+**ultproxy** also provides two types of explicit proxy(not transparent proxy).
 One is a simple proxy delegating to upstream your proxy, another is for adding `Proxy-Authorization` header automatically.
 
 ## Requirement
 
-**go-transproxy** supports only Linux iptables.
+**ultproxy** supports only Linux iptables.
 
 ## Install
 
 ### Binaly install
-Download from [Releases page](https://github.com/wadahiro/go-transproxy/releases).
+Download from [Releases page](https://github.com/kiraryyx/ultproxy/releases).
 
 ### Source install
 Use Go 1.8 and [dep](https://github.com/golang/dep).
 
 ```
 dep ensure
-go build -o transproxy cmd/transproxy/main.go
-chmod +x transproxy
+go build -o ultproxy cmd/ultproxy/main.go
+chmod +x ultproxy
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ chmod +x transproxy
 ```
 Usage:
 
-  transproxy [options]
+  ultproxy [options]
 
 Options:
 
@@ -75,8 +75,8 @@ export http_proxy=http://foo:bar@yourproxy.example.org:3128
 # Set no_proxy if you need to access directly for internal
 export no_proxy=example.org,192.168.0.0/24
 
-# Start go-transproxy with admin privileges(sudo)
-sudo -E transproxy
+# Start ultproxy with admin privileges(sudo)
+sudo -E ultproxy
 ```
 
 For testing, using docker is easy way. Now, you can access to google from docker container with no proxy configuration as follows.
@@ -94,7 +94,7 @@ The document has moved
 If you want to use an application which access to internet using port 5000, run command with `-tcp-proxy-dports` option as below.
 
 ```
-sudo -E transproxy -tcp-proxy-dports 22,5000
+sudo -E ultproxy -tcp-proxy-dports 22,5000
 ```
 
 ## Current Limitation
@@ -107,7 +107,8 @@ sudo -E transproxy -tcp-proxy-dports 22,5000
 
 Licensed under the [MIT](/LICENSE) license.
 
-## Author
+## Authors
 
-[Hiroyuki Wada](https://github.com/wadahiro)
+* [Hiroyuki Wada](https://github.com/wadahiro)
+* [@kiraryyx](https://github.com/kiraryyx)
 

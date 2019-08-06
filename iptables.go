@@ -1,8 +1,7 @@
-package transproxy
+package ultproxy
 
 import (
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 
@@ -17,9 +16,6 @@ const (
 
 type IPTables struct {
 	iptables      *iptables.IPTables
-	dnsTCPOutRule []string
-	dnsTCPRule    []string
-	dnsUDPRule    []string
 	httpRule      []string
 	httpsRule     []string
 	tcpRule       []string
@@ -27,12 +23,10 @@ type IPTables struct {
 }
 
 type IPTablesConfig struct {
-	DNSToPort   int
 	HTTPToPort  int
 	HTTPSToPort int
 	TCPToPort   int
 	TCPDPorts   []int
-	PublicDNS   string
 }
 
 func NewIPTables(c *IPTablesConfig) (*IPTables, error) {
@@ -46,27 +40,12 @@ func NewIPTables(c *IPTablesConfig) (*IPTables, error) {
 		tcpDPorts = append(tcpDPorts, strconv.Itoa(v))
 	}
 
-	var dnsTCPOutRule []string
-	if c.PublicDNS != "" {
-		h, p, err := net.SplitHostPort(c.PublicDNS)
-		if err != nil {
-			c.PublicDNS = net.JoinHostPort(c.PublicDNS, "53")
-		}
-		h, p, _ = net.SplitHostPort(c.PublicDNS)
-		dnsTCPOutRule = []string{NAT, OUTPUT, "-p", "tcp", "-d", h, "--dport", p, "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.TCPToPort)}
-	}
-
-	dnsTCPRule := []string{NAT, PREROUTING, "-p", "tcp", "--dport", "53", "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.DNSToPort)}
-	dnsUDPRule := []string{NAT, PREROUTING, "-p", "udp", "--dport", "53", "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.DNSToPort)}
 	httpRule := []string{NAT, PREROUTING, "-p", "tcp", "--dport", "80", "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.HTTPToPort)}
 	httpsRule := []string{NAT, PREROUTING, "-p", "tcp", "--dport", "443", "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.HTTPSToPort)}
 	tcpRule := []string{NAT, PREROUTING, "-p", "tcp", "-m", "multiport", "--dport", strings.Join(tcpDPorts, ","), "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.TCPToPort)}
 
 	return &IPTables{
 		iptables:      t,
-		dnsTCPOutRule: dnsTCPOutRule,
-		dnsTCPRule:    dnsTCPRule,
-		dnsUDPRule:    dnsUDPRule,
 		httpRule:      httpRule,
 		httpsRule:     httpsRule,
 		tcpRule:       tcpRule,
@@ -74,16 +53,10 @@ func NewIPTables(c *IPTablesConfig) (*IPTables, error) {
 }
 
 func (t *IPTables) Start() error {
-	t.Check(t.dnsTCPOutRule)
-	t.Check(t.dnsTCPRule)
-	t.Check(t.dnsUDPRule)
 	t.Check(t.httpRule)
 	t.Check(t.httpsRule)
 	t.Check(t.tcpRule)
 
-	t.insertRule(t.dnsTCPOutRule)
-	t.insertRule(t.dnsTCPRule)
-	t.insertRule(t.dnsUDPRule)
 	t.insertRule(t.httpRule)
 	t.insertRule(t.httpsRule)
 	t.insertRule(t.tcpRule)
@@ -92,9 +65,6 @@ func (t *IPTables) Start() error {
 }
 
 func (t *IPTables) Stop() error {
-	t.deleteRule(t.dnsTCPOutRule)
-	t.deleteRule(t.dnsTCPRule)
-	t.deleteRule(t.dnsUDPRule)
 	t.deleteRule(t.httpRule)
 	t.deleteRule(t.httpsRule)
 	t.deleteRule(t.tcpRule)
@@ -105,22 +75,11 @@ func (t *IPTables) Stop() error {
 func (t *IPTables) Show() string {
 	s := fmt.Sprintf(`iptables -t %s -I %s
 iptables -t %s -I %s
-iptables -t %s -I %s
-iptables -t %s -I %s
 iptables -t %s -I %s`,
 		t.tcpRule[0], strings.Join(t.tcpRule[1:], " "),
 		t.httpsRule[0], strings.Join(t.httpsRule[1:], " "),
 		t.httpRule[0], strings.Join(t.httpRule[1:], " "),
-		t.dnsUDPRule[0], strings.Join(t.dnsUDPRule[1:], " "),
-		t.dnsTCPRule[0], strings.Join(t.dnsTCPRule[1:], " "),
 	)
-
-	if len(t.dnsTCPOutRule) > 0 {
-		s += fmt.Sprintf(`
-iptables -t %s -I %s`,
-			t.dnsTCPOutRule[0], strings.Join(t.dnsTCPOutRule[1:], " "),
-		)
-	}
 
 	return s
 }

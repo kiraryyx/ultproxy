@@ -26,7 +26,7 @@ Download from [Releases page](https://github.com/kiraryyx/ultproxy/releases).
 Use Go 1.12 or later.
 
 ```
-go get -u github.com/kiraryyx/ultproxy
+go get -u github.com/kiraryyx/ultproxy/cmd/ultproxy
 ```
 
 ## Usage

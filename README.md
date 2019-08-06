@@ -23,12 +23,10 @@ One is a simple proxy delegating to upstream your proxy, another is for adding `
 Download from [Releases page](https://github.com/kiraryyx/ultproxy/releases).
 
 ### Source install
-Use Go 1.8 and [dep](https://github.com/golang/dep).
+Use Go 1.12 or later.
 
 ```
-dep ensure
-go build -o ultproxy cmd/ultproxy/main.go
-chmod +x ultproxy
+go get -u github.com/kiraryyx/ultproxy
 ```
 
 ## Usage

@@ -32,12 +32,6 @@ var (
 		"Log level, one of: debug, info, warn, error, fatal, panic",
 	)
 
-	privateDNS = fs.String("private-dns", "",
-		"Private DNS address for no_proxy targets (IP[:port])")
-
-	publicDNS = fs.String("public-dns", "",
-		"Public DNS address (IP[:port]) Note: Your proxy needs to support CONNECT method to the Public DNS port, and the public DNS needs to support TCP")
-
 	tcpProxyDestPorts = fs.String(
 		"tcp-proxy-dports", "22", "TCP Proxy dports, as `port1,port2,...`",
 	)
@@ -54,10 +48,6 @@ var (
 		"https-proxy-listen", ":3130", "HTTPS Proxy listen address, as `[host]:port`",
 	)
 
-	dnsProxyListenAddress = fs.String(
-		"dns-proxy-listen", ":3131", "DNS Proxy listen address, as `[host]:port`",
-	)
-
 	explicitProxyListenAddress = fs.String(
 		"explicit-proxy-listen", ":3132", "Explicit Proxy listen address for HTTP/HTTPS, as `[host]:port` Note: This proxy doesn't use authentication info of the `http_proxy` and `https_proxy` environment variables",
 	)
@@ -70,20 +60,6 @@ var (
 		"explicit-proxy-only", false, "Boot Explicit Proxies only",
 	)
 
-	dnsOverTCPDisabled = fs.Bool(
-		"dns-over-tcp-disabled", false, "Disable DNS-over-TCP for querying to public DNS")
-
-	dnsOverHTTPSEnabled = fs.Bool(
-		"dns-over-https-enabled", false, "Use DNS-over-HTTPS service as public DNS")
-
-	dnsOverHTTPSEndpoint = fs.String(
-		"dns-over-https-endpoint",
-		"https://dns.google.com/resolve",
-		"DNS-over-HTTPS endpoint URL",
-	)
-
-	dnsEnableTCP = fs.Bool("dns-tcp", true, "DNS Listen on TCP")
-	dnsEnableUDP = fs.Bool("dns-udp", true, "DNS Listen on UDP")
 	disableIPTables = fs.Bool("disable-iptables", false, "Disable automatic iptables configuration")
 )
 
@@ -152,21 +128,6 @@ func startAllProxy(level colog.Level) {
 		log.Fatalf("alert: %s", err.Error())
 	}
 
-	dnsProxy := transproxy.NewDNSProxy(
-		transproxy.DNSProxyConfig{
-			Enabled:             useDNSProxy(),
-			ListenAddress:       *dnsProxyListenAddress,
-			EnableUDP:           *dnsEnableUDP,
-			EnableTCP:           *dnsEnableTCP,
-			Endpoint:            *dnsOverHTTPSEndpoint,
-			PublicDNS:           *publicDNS,
-			PrivateDNS:          *privateDNS,
-			DNSOverHTTPSEnabled: *dnsOverHTTPSEnabled,
-			NoProxyDomains:      np.Domains,
-		},
-	)
-	dnsProxy.Start()
-
 	httpProxy := transproxy.NewHTTPProxy(
 		transproxy.HTTPProxyConfig{
 			ListenAddress: *httpProxyListenAddress,
@@ -192,28 +153,20 @@ func startAllProxy(level colog.Level) {
 
 	log.Printf("info: All proxy servers started.")
 
-	dnsToPort := toPort(*dnsProxyListenAddress)
 	httpToPort := toPort(*httpProxyListenAddress)
 	httpsToPort := toPort(*httpsProxyListenAddress)
 	tcpToPort := toPort(*tcpProxyListenAddress)
 	tcpDPorts := toPorts(*tcpProxyDestPorts)
-
-	outgoingPublicDNS := *publicDNS
-	if *dnsOverTCPDisabled {
-		outgoingPublicDNS = ""
-	}
 
 	var t *transproxy.IPTables
 	var err error
 
 	if !*disableIPTables {
 		t, err = transproxy.NewIPTables(&transproxy.IPTablesConfig{
-			DNSToPort:   dnsToPort,
 			HTTPToPort:  httpToPort,
 			HTTPSToPort: httpsToPort,
 			TCPToPort:   tcpToPort,
 			TCPDPorts:   tcpDPorts,
-			PublicDNS:   outgoingPublicDNS,
 		})
 		if err != nil {
 			log.Printf("alert: %s", err.Error())
@@ -240,10 +193,6 @@ func startAllProxy(level colog.Level) {
 		log.Printf("info: iptables rules deleted.")
 	}
 
-	if dnsProxy != nil {
-		dnsProxy.Stop()
-	}
-
 	log.Printf("info: go-transproxy exited.")
 }
 
@@ -267,13 +216,6 @@ func startExplicitProxy() {
 	if err := explicitProxy.Start(); err != nil {
 		log.Fatalf("alert: %s", err.Error())
 	}
-}
-
-func useDNSProxy() bool {
-	if *privateDNS == "" && *publicDNS == "" && *dnsOverHTTPSEnabled == false {
-		return false
-	}
-	return true
 }
 
 func toPort(addr string) int {

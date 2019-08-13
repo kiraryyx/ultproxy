@@ -15,11 +15,11 @@ const (
 )
 
 type IPTables struct {
-	iptables      *iptables.IPTables
-	httpRule      []string
-	httpsRule     []string
-	tcpRule       []string
-	err           error
+	iptables  *iptables.IPTables
+	httpRule  []string
+	httpsRule []string
+	tcpRule   []string
+	err       error
 }
 
 type IPTablesConfig struct {
@@ -45,10 +45,10 @@ func NewIPTables(c *IPTablesConfig) (*IPTables, error) {
 	tcpRule := []string{NAT, PREROUTING, "-p", "tcp", "-m", "multiport", "--dport", strings.Join(tcpDPorts, ","), "-j", "REDIRECT", "--to-ports", strconv.Itoa(c.TCPToPort)}
 
 	return &IPTables{
-		iptables:      t,
-		httpRule:      httpRule,
-		httpsRule:     httpsRule,
-		tcpRule:       tcpRule,
+		iptables:  t,
+		httpRule:  httpRule,
+		httpsRule: httpsRule,
+		tcpRule:   tcpRule,
 	}, nil
 }
 

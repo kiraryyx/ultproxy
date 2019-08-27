@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/elazarl/goproxy"
 )
@@ -14,9 +15,10 @@ type HTTPProxy struct {
 }
 
 type HTTPProxyConfig struct {
-	ListenAddress string
-	NoProxy       NoProxy
-	Verbose       bool
+	ListenAddress    string
+	NoProxy          NoProxy
+	UpstreamProxyURL *url.URL
+	Verbose          bool
 }
 
 func NewHTTPProxy(c HTTPProxyConfig) *HTTPProxy {
@@ -32,7 +34,7 @@ func (s HTTPProxy) Start() error {
 	}
 
 	proxy := goproxy.NewProxyHttpServer()
-	proxy.Tr.Proxy = httpProxyFromRule(s.NoProxy)
+	proxy.Tr.Proxy = httpProxyFromRule(s.NoProxy, s.UpstreamProxyURL)
 	proxy.Verbose = s.Verbose
 
 	proxy.NonproxyHandler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

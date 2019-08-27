@@ -1,14 +1,12 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,61 +22,14 @@ func orPanic(err error) {
 	}
 }
 
-var (
-	fs       = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	loglevel = fs.String(
-		"loglevel",
-		"info",
-		"Log level, one of: debug, info, warn, error, fatal, panic",
-	)
-
-	tcpProxyDestPorts = fs.String(
-		"tcp-proxy-dports", "22", "TCP Proxy dports, as `port1,port2,...`",
-	)
-
-	tcpProxyListenAddress = fs.String(
-		"tcp-proxy-listen", ":3128", "TCP Proxy listen address, as `[host]:port`",
-	)
-
-	httpProxyListenAddress = fs.String(
-		"http-proxy-listen", ":3129", "HTTP Proxy listen address, as `[host]:port`",
-	)
-
-	httpsProxyListenAddress = fs.String(
-		"https-proxy-listen", ":3130", "HTTPS Proxy listen address, as `[host]:port`",
-	)
-
-	explicitProxyListenAddress = fs.String(
-		"explicit-proxy-listen", ":3132", "Explicit Proxy listen address for HTTP/HTTPS, as `[host]:port` Note: This proxy doesn't use authentication info of the `http_proxy` and `https_proxy` environment variables",
-	)
-
-	explicitProxyWithAuthListenAddress = fs.String(
-		"explicit-proxy-with-auth-listen", ":3133", "Explicit Proxy with auth listen address for HTTP/HTTPS, as `[host]:port` Note: This proxy uses authentication info of the `http_proxy` and `https_proxy` environment variables",
-	)
-
-	explicitProxyOnly = fs.Bool(
-		"explicit-proxy-only", false, "Boot Explicit Proxies only",
-	)
-
-	disableIPTables = fs.Bool("disable-iptables", false, "Disable automatic iptables configuration")
-)
-
-func main() {
-	fs.Usage = func() {
-		_, exe := filepath.Split(os.Args[0])
-		fmt.Fprint(os.Stderr, "ultproxy.\n\n")
-		fmt.Fprintf(os.Stderr, "Usage:\n\n  %s [options]\n\nOptions:\n\n", exe)
-		fs.PrintDefaults()
-	}
-	fs.Parse(os.Args[1:])
-
+func initProxies() {
 	// seed the global random number generator, used in secureoperator
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	// setup logger
 	colog.SetDefaultLevel(colog.LDebug)
 	colog.SetMinLevel(colog.LInfo)
-	level, err := colog.ParseLevel(*loglevel)
+	level, err := colog.ParseLevel(config.Logging.Level)
 	if err != nil {
 		log.Fatalf("alert: Invalid log level: %s", err.Error())
 	}
@@ -90,7 +41,7 @@ func main() {
 	colog.ParseFields(true)
 	colog.Register()
 
-	if *explicitProxyOnly {
+	if config.LiveServer.StartExplicitOnly {
 		startExplicitProxyOnly(level)
 	} else {
 		startAllProxy(level)
@@ -110,18 +61,46 @@ func startExplicitProxyOnly(level colog.Level) {
 }
 
 func startAllProxy(level colog.Level) {
-	// handling no_proxy environment
-	noProxy := os.Getenv("no_proxy")
-	if noProxy == "" {
-		noProxy = os.Getenv("NO_PROXY")
+	var err error
+
+	// Decide upstream proxy for each proxy
+	upstreamStrForTCP := config.LiveServer.TCP.UpstreamProxyURL
+	if upstreamStrForTCP == "" {
+		upstreamStrForTCP = config.LiveServer.UpstreamProxyURL
 	}
 
-	np := parseNoProxy(noProxy)
+	upstreamURLForTCP, err := url.Parse(upstreamStrForTCP)
+	if err != nil {
+		log.Fatalf("alert: %s", err.Error())
+	}
+
+	upstreamStrForHTTP := config.LiveServer.HTTP.UpstreamProxyURL
+	if upstreamStrForHTTP == "" {
+		upstreamStrForHTTP = config.LiveServer.UpstreamProxyURL
+	}
+
+	upstreamURLForHTTP, err := url.Parse(upstreamStrForHTTP)
+	if err != nil {
+		log.Fatalf("alert: %s", err.Error())
+	}
+
+	upstreamStrForHTTPS := config.LiveServer.HTTPS.UpstreamProxyURL
+	if upstreamStrForHTTPS == "" {
+		upstreamStrForHTTPS = config.LiveServer.UpstreamProxyURL
+	}
+
+	upstreamURLForHTTPS, err := url.Parse(upstreamStrForHTTPS)
+	if err != nil {
+		log.Fatalf("alert: %s", err.Error())
+	}
+
+	np := parseNoProxy(config.LiveServer.NoProxy)
 	// start servers
 	tcpProxy := transproxy.NewTCPProxy(
 		transproxy.TCPProxyConfig{
-			ListenAddress: *tcpProxyListenAddress,
-			NoProxy:       np,
+			ListenAddress:    config.LiveServer.TCP.ListenAddress,
+			NoProxy:          np,
+			UpstreamProxyURL: upstreamURLForTCP,
 		},
 	)
 	if err := tcpProxy.Start(); err != nil {
@@ -130,9 +109,10 @@ func startAllProxy(level colog.Level) {
 
 	httpProxy := transproxy.NewHTTPProxy(
 		transproxy.HTTPProxyConfig{
-			ListenAddress: *httpProxyListenAddress,
-			NoProxy:       np,
-			Verbose:       level == colog.LDebug,
+			ListenAddress:    config.LiveServer.HTTP.ListenAddress,
+			NoProxy:          np,
+			UpstreamProxyURL: upstreamURLForHTTP,
+			Verbose:          level == colog.LDebug,
 		},
 	)
 	if err := httpProxy.Start(); err != nil {
@@ -141,8 +121,9 @@ func startAllProxy(level colog.Level) {
 
 	httpsProxy := transproxy.NewHTTPSProxy(
 		transproxy.HTTPSProxyConfig{
-			ListenAddress: *httpsProxyListenAddress,
-			NoProxy:       np,
+			ListenAddress:    config.LiveServer.HTTPS.ListenAddress,
+			NoProxy:          np,
+			UpstreamProxyURL: upstreamURLForHTTPS,
 		},
 	)
 	if err := httpsProxy.Start(); err != nil {
@@ -153,15 +134,14 @@ func startAllProxy(level colog.Level) {
 
 	log.Printf("info: All proxy servers started.")
 
-	httpToPort := toPort(*httpProxyListenAddress)
-	httpsToPort := toPort(*httpsProxyListenAddress)
-	tcpToPort := toPort(*tcpProxyListenAddress)
-	tcpDPorts := toPorts(*tcpProxyDestPorts)
+	httpToPort := toPort(config.LiveServer.HTTP.ListenAddress)
+	httpsToPort := toPort(config.LiveServer.HTTPS.ListenAddress)
+	tcpToPort := toPort(config.LiveServer.TCP.ListenAddress)
+	tcpDPorts := toPorts(config.LiveServer.TCP.DestPorts)
 
 	var t *transproxy.IPTables
-	var err error
 
-	if !*disableIPTables {
+	if config.LiveServer.Iptables.EnableAutoConfig {
 		t, err = transproxy.NewIPTables(&transproxy.IPTablesConfig{
 			HTTPToPort:  httpToPort,
 			HTTPSToPort: httpsToPort,
@@ -188,7 +168,7 @@ func startAllProxy(level colog.Level) {
 	log.Printf("info: Proxy servers stopping.")
 
 	// start shutdown process
-	if !*disableIPTables {
+	if config.LiveServer.Iptables.EnableAutoConfig {
 		t.Stop()
 		log.Printf("info: iptables rules deleted.")
 	}
@@ -197,9 +177,30 @@ func startAllProxy(level colog.Level) {
 }
 
 func startExplicitProxy() {
+	upstreamStrForExplicit := config.LiveServer.Explicit.UpstreamProxyURL
+	if upstreamStrForExplicit == "" {
+		upstreamStrForExplicit = config.LiveServer.UpstreamProxyURL
+	}
+
+	upstreamURLForExplicit, err := url.Parse(upstreamStrForExplicit)
+	if err != nil {
+		log.Fatalf("alert: %s", err.Error())
+	}
+
+	upstreamStrForExplicitWithAuth := config.LiveServer.Explicit.UpstreamProxyURL
+	if upstreamStrForExplicitWithAuth == "" {
+		upstreamStrForExplicitWithAuth = upstreamStrForExplicit
+	}
+
+	upstreamURLForExplicitWithAuth, err := url.Parse(upstreamStrForExplicitWithAuth)
+	if err != nil {
+		log.Fatalf("alert: %s", err.Error())
+	}
+
 	explicitProxyWithAuth := transproxy.NewExplicitProxy(
 		transproxy.ExplicitProxyConfig{
-			ListenAddress:         *explicitProxyWithAuthListenAddress,
+			ListenAddress:         config.LiveServer.ExplicitWithAuth.ListenAddress,
+			UpstreamProxyURL:      upstreamURLForExplicitWithAuth,
 			UseProxyAuthorization: true,
 		},
 	)
@@ -209,7 +210,8 @@ func startExplicitProxy() {
 
 	explicitProxy := transproxy.NewExplicitProxy(
 		transproxy.ExplicitProxyConfig{
-			ListenAddress:         *explicitProxyListenAddress,
+			ListenAddress:         config.LiveServer.Explicit.ListenAddress,
+			UpstreamProxyURL:      upstreamURLForExplicit,
 			UseProxyAuthorization: false,
 		},
 	)
@@ -236,19 +238,12 @@ func toPort(addr string) int {
 	return i
 }
 
-func toPorts(ports string) []int {
-	array := strings.Split(ports, ",")
-
+func toPorts(ports []int) []int {
 	var p []int
 
-	for _, v := range array {
-		i, err := strconv.Atoi(v)
-		if err != nil {
-			log.Printf("alert: Invalid port, It's not number: %s", ports)
-		}
-
+	for _, i := range ports {
 		if i > 65535 || i < 0 {
-			log.Printf("alert: Invalid port, It must be an integer value in the range 0-65535: %s", ports)
+			log.Printf("alert: Invalid port, It must be an integer value in the range 0-65535: %d", ports)
 		}
 
 		p = append(p, i)
@@ -257,14 +252,12 @@ func toPorts(ports string) []int {
 	return p
 }
 
-func parseNoProxy(noProxy string) transproxy.NoProxy {
-	p := strings.Split(noProxy, ",")
-
+func parseNoProxy(noProxy []string) transproxy.NoProxy {
 	var ipArray []string
 	var cidrArray []*net.IPNet
 	var domainArray []string
 
-	for _, v := range p {
+	for _, v := range noProxy {
 		ip := net.ParseIP(v)
 		if ip != nil {
 			ipArray = append(ipArray, v)

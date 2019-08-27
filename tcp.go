@@ -4,7 +4,6 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -16,8 +15,9 @@ type TCPProxy struct {
 }
 
 type TCPProxyConfig struct {
-	ListenAddress string
-	NoProxy       NoProxy
+	ListenAddress    string
+	NoProxy          NoProxy
+	UpstreamProxyURL *url.URL
 }
 
 func NewTCPProxy(c TCPProxyConfig) *TCPProxy {
@@ -33,12 +33,8 @@ func (s TCPProxy) Start() error {
 		KeepAlive: 3 * time.Minute,
 		DualStack: true,
 	}
-	u, err := url.Parse(os.Getenv("http_proxy"))
-	if err != nil {
-		return err
-	}
 
-	pdialer, err := proxy.FromURL(u, dialer)
+	pdialer, err := proxy.FromURL(s.UpstreamProxyURL, dialer)
 	if err != nil {
 		return err
 	}

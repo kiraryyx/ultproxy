@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 )
@@ -26,6 +25,7 @@ type ExplicitProxy struct {
 
 type ExplicitProxyConfig struct {
 	ListenAddress         string
+	UpstreamProxyURL      *url.URL
 	UseProxyAuthorization bool
 }
 
@@ -36,10 +36,7 @@ func NewExplicitProxy(c ExplicitProxyConfig) *ExplicitProxy {
 }
 
 func (s ExplicitProxy) Start() error {
-	u, err := url.Parse(os.Getenv("http_proxy"))
-	if err != nil {
-		return err
-	}
+	u := s.UpstreamProxyURL
 
 	if s.UseProxyAuthorization {
 		s.category = "Explicit-Proxy(Auth)"

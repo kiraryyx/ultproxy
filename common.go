@@ -139,11 +139,11 @@ type NoProxy struct {
 	Domains []string
 }
 
-func httpProxyFromRule(noProxy NoProxy) func(*http.Request) (*url.URL, error) {
+func httpProxyFromRule(noProxy NoProxy, upstream *url.URL) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		if useProxy(noProxy, strings.Split(req.Host, ":")[0]) {
 
-			return http.ProxyFromEnvironment(req)
+			return upstream, nil
 		} else {
 			return nil, nil
 		}
